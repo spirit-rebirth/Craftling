@@ -90,6 +90,7 @@ export function createGatewayCloseHandler(params: {
   clients: Set<{ socket: { close: (code: number, reason: string) => void } }>;
   configReloader: { stop: () => Promise<void> };
   wss: WebSocketServer;
+  additionalWebSocketServers?: WebSocketServer[];
   httpServer: HttpServer;
   httpServers?: HttpServer[];
 }) {
@@ -197,35 +198,38 @@ export function createGatewayCloseHandler(params: {
       }
       params.clients.clear();
       await params.configReloader.stop().catch(() => {});
-      const wsClients = params.wss.clients ?? new Set();
-      const closePromise = new Promise<void>((resolve) => params.wss.close(() => resolve()));
-      const websocketGraceTimeout = createTimeoutRace(
-        WEBSOCKET_CLOSE_GRACE_MS,
-        () => false as const,
-      );
-      const closedWithinGrace = await Promise.race([
-        closePromise.then(() => true),
-        websocketGraceTimeout.promise,
-      ]);
-      websocketGraceTimeout.clear();
-      if (!closedWithinGrace) {
-        shutdownLog.warn(
-          `websocket server close exceeded ${WEBSOCKET_CLOSE_GRACE_MS}ms; forcing shutdown continuation with ${wsClients.size} tracked client(s)`,
+      const websocketServers = [params.wss, ...(params.additionalWebSocketServers ?? [])];
+      for (const wss of websocketServers) {
+        const wsClients = wss.clients ?? new Set();
+        const closePromise = new Promise<void>((resolve) => wss.close(() => resolve()));
+        const websocketGraceTimeout = createTimeoutRace(
+          WEBSOCKET_CLOSE_GRACE_MS,
+          () => false as const,
         );
-        for (const client of wsClients) {
-          try {
-            client.terminate();
-          } catch {
-            /* ignore */
-          }
-        }
-        const websocketForceTimeout = createTimeoutRace(WEBSOCKET_CLOSE_FORCE_CONTINUE_MS, () => {
+        const closedWithinGrace = await Promise.race([
+          closePromise.then(() => true),
+          websocketGraceTimeout.promise,
+        ]);
+        websocketGraceTimeout.clear();
+        if (!closedWithinGrace) {
           shutdownLog.warn(
-            `websocket server close still pending after ${WEBSOCKET_CLOSE_FORCE_CONTINUE_MS}ms force window; continuing shutdown`,
+            `websocket server close exceeded ${WEBSOCKET_CLOSE_GRACE_MS}ms; forcing shutdown continuation with ${wsClients.size} tracked client(s)`,
           );
-        });
-        await Promise.race([closePromise, websocketForceTimeout.promise]);
-        websocketForceTimeout.clear();
+          for (const client of wsClients) {
+            try {
+              client.terminate();
+            } catch {
+              /* ignore */
+            }
+          }
+          const websocketForceTimeout = createTimeoutRace(WEBSOCKET_CLOSE_FORCE_CONTINUE_MS, () => {
+            shutdownLog.warn(
+              `websocket server close still pending after ${WEBSOCKET_CLOSE_FORCE_CONTINUE_MS}ms force window; continuing shutdown`,
+            );
+          });
+          await Promise.race([closePromise, websocketForceTimeout.promise]);
+          websocketForceTimeout.clear();
+        }
       }
       const servers =
         params.httpServers && params.httpServers.length > 0

@@ -16,6 +16,7 @@ import {
 } from "../config/config.js";
 import { applyPluginAutoEnable } from "../config/plugin-auto-enable.js";
 import { resolveMainSessionKey } from "../config/sessions.js";
+import { attachCraftlingGatewayAdapter } from "../craftling/gateway-adapter.js";
 import { clearAgentRunContext } from "../infra/agent-events.js";
 import { isDiagnosticsEnabled } from "../infra/diagnostic-events.js";
 import { isVitestRuntimeEnv, logAcceptedEnvOption } from "../infra/env.js";
@@ -428,6 +429,7 @@ export async function startGatewayServer(
     httpServers,
     httpBindHosts,
     wss,
+    craftlingWss,
     preauthConnectionBudget,
     clients,
     broadcast,
@@ -545,6 +547,7 @@ export async function startGatewayServer(
       clients,
       configReloader: runtimeState.configReloader,
       wss,
+      additionalWebSocketServers: [craftlingWss],
       httpServer,
       httpServers,
     })({ reason: "gateway startup failed" });
@@ -737,6 +740,13 @@ export async function startGatewayServer(
       broadcast,
       context: gatewayRequestContext,
     });
+    attachCraftlingGatewayAdapter({
+      wss: craftlingWss,
+      clients,
+      context: gatewayRequestContext,
+      extraHandlers: { ...pluginRegistry.gatewayHandlers, ...extraHandlers },
+      logGateway: log,
+    });
     ({
       stopGatewayUpdateCheck: runtimeState.stopGatewayUpdateCheck,
       tailscaleCleanup: runtimeState.tailscaleCleanup,
@@ -843,6 +853,7 @@ export async function startGatewayServer(
     clients,
     configReloader: runtimeState.configReloader,
     wss,
+    additionalWebSocketServers: [craftlingWss],
     httpServer,
     httpServers,
   });

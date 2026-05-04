@@ -13,6 +13,7 @@ import type { CanvasHostHandler } from "../canvas-host/server.js";
 import { resolveBundledChannelGatewayAuthBypassPaths } from "../channels/plugins/gateway-auth-bypass.js";
 import { loadConfig } from "../config/config.js";
 import type { OpenClawConfig } from "../config/types.openclaw.js";
+import { CRAFTLING_WS_PATH } from "../craftling/routes.js";
 import type { createSubsystemLogger } from "../logging/subsystem.js";
 import { resolveHookExternalContentSource as resolveHookExternalContentSourceFromSession } from "../security/external-content.js";
 import { safeEqualSecret } from "../security/secret-equal.js";
@@ -1132,6 +1133,7 @@ export function createGatewayHttpServer(opts: {
 export function attachGatewayUpgradeHandler(opts: {
   httpServer: HttpServer;
   wss: WebSocketServer;
+  craftlingWss?: WebSocketServer;
   canvasHost: CanvasHostHandler | null;
   clients: Set<GatewayWsClient>;
   preauthConnectionBudget: PreauthConnectionBudget;
@@ -1143,6 +1145,7 @@ export function attachGatewayUpgradeHandler(opts: {
   const {
     httpServer,
     wss,
+    craftlingWss,
     canvasHost,
     clients,
     preauthConnectionBudget,
@@ -1188,8 +1191,11 @@ export function attachGatewayUpgradeHandler(opts: {
           return;
         }
       }
+      const url = new URL(req.url ?? "/", "http://localhost");
+      const targetWss =
+        craftlingWss && url.pathname === CRAFTLING_WS_PATH ? craftlingWss : wss;
       const preauthBudgetKey = resolveRequestClientIp(req, trustedProxies, allowRealIpFallback);
-      if (wss.listenerCount("connection") === 0) {
+      if (targetWss.listenerCount("connection") === 0) {
         const responseBody = "Gateway websocket handlers unavailable";
         socket.write(
           "HTTP/1.1 503 Service Unavailable\r\n" +
@@ -1225,14 +1231,14 @@ export function attachGatewayUpgradeHandler(opts: {
       };
       socket.once("close", releaseUpgradeBudget);
       try {
-        wss.handleUpgrade(req, socket, head, (ws) => {
+        targetWss.handleUpgrade(req, socket, head, (ws) => {
           (
             ws as unknown as import("ws").WebSocket & {
               __openclawPreauthBudgetClaimed?: boolean;
               __openclawPreauthBudgetKey?: string;
             }
           ).__openclawPreauthBudgetKey = preauthBudgetKey;
-          wss.emit("connection", ws, req);
+          targetWss.emit("connection", ws, req);
           const budgetClaimed = Boolean(
             (
               ws as unknown as import("ws").WebSocket & {

@@ -85,6 +85,7 @@ export async function createGatewayRuntimeState(params: {
   httpServers: HttpServer[];
   httpBindHosts: string[];
   wss: WebSocketServer;
+  craftlingWss: WebSocketServer;
   preauthConnectionBudget: PreauthConnectionBudget;
   clients: Set<GatewayWsClient>;
   broadcast: GatewayBroadcastFn;
@@ -217,11 +218,16 @@ export async function createGatewayRuntimeState(params: {
       noServer: true,
       maxPayload: MAX_PREAUTH_PAYLOAD_BYTES,
     });
+    const craftlingWss = new WebSocketServer({
+      noServer: true,
+      maxPayload: MAX_PREAUTH_PAYLOAD_BYTES,
+    });
     const preauthConnectionBudget = createPreauthConnectionBudget();
     for (const server of httpServers) {
       attachGatewayUpgradeHandler({
         httpServer: server,
         wss,
+        craftlingWss,
         canvasHost,
         clients,
         preauthConnectionBudget,
@@ -258,6 +264,7 @@ export async function createGatewayRuntimeState(params: {
       httpServers,
       httpBindHosts,
       wss,
+      craftlingWss,
       preauthConnectionBudget,
       clients,
       broadcast,
