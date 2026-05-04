@@ -1285,6 +1285,7 @@
     "craftling:dev": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/craftling-dev.ps1",
     "craftling:health": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/craftling-health.ps1",
     "craftling:status": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/craftling-status.ps1",
+    "craftling:dashboard": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/craftling-dashboard.ps1",
     "craftling:stop": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/craftling-stop.ps1",
     "gateway:dev": "OPENCLAW_SKIP_CHANNELS=1 node scripts/run-node.mjs --dev gateway",
     "gateway:dev:reset": "OPENCLAW_SKIP_CHANNELS=1 node scripts/run-node.mjs --dev gateway --reset",
