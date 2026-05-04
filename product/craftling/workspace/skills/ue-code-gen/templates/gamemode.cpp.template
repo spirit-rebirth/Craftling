@@ -1,0 +1,12 @@
+#include "{{CLASS_NAME}}.h"
+
+A{{CLASS_NAME}}::A{{CLASS_NAME}}()
+{
+}
+
+void A{{CLASS_NAME}}::StartPlay()
+{
+	Super::StartPlay();
+
+	UE_LOG(LogTemp, Log, TEXT("[AgentTest] %s: Game mode started"), *GetName());
+}

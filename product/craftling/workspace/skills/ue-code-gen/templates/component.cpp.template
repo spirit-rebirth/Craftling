@@ -1,0 +1,17 @@
+#include "{{CLASS_NAME}}.h"
+
+U{{CLASS_NAME}}::U{{CLASS_NAME}}()
+{
+	PrimaryComponentTick.bCanEverTick = false;
+}
+
+void U{{CLASS_NAME}}::BeginPlay()
+{
+	Super::BeginPlay();
+}
+
+void U{{CLASS_NAME}}::TickComponent(float DeltaTime, ELevelTick TickType,
+	FActorComponentTickFunction* ThisTickFunction)
+{
+	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
+}

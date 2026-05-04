@@ -1,0 +1,51 @@
+{
+    "id":  "unreal-agentbridge",
+    "name":  "Unreal AgentBridge",
+    "description":  "Registers Unreal Engine AgentBridge HTTP tools for OpenClaw.",
+    "configSchema":  {
+                         "type":  "object",
+                         "additionalProperties":  false,
+                         "properties":  {
+                                            "baseUrl":  {
+                                                            "type":  "string",
+                                                            "description":  "Base URL for the Unreal AgentBridge HTTP server."
+                                                        },
+                                            "buildBat":  {
+                                                             "type":  "string",
+                                                             "description":  "Absolute path to Unreal Engine Build.bat."
+                                                         },
+                                            "projectFile":  {
+                                                                "type":  "string",
+                                                                "description":  "Absolute path to the Unreal .uproject file."
+                                                            },
+                                            "defaultBuildTarget":  {
+                                                                       "type":  "string",
+                                                                       "description":  "Default Unreal build target name."
+                                                                   },
+                                            "defaultBuildPlatform":  {
+                                                                         "type":  "string",
+                                                                         "description":  "Default Unreal build platform."
+                                                                     },
+                                            "defaultBuildConfiguration":  {
+                                                                              "type":  "string",
+                                                                              "description":  "Default Unreal build configuration."
+                                                                          },
+                                            "editorWindowTitles":  {
+                                                                       "type":  "array",
+                                                                       "items":  {
+                                                                                     "type":  "string"
+                                                                                 },
+                                                                       "description":  "Ordered Unreal Editor window titles to try when triggering Live Coding."
+                                                                   },
+                                            "liveCompileSettleMs":  {
+                                                                        "type":  "integer",
+                                                                        "minimum":  0,
+                                                                        "description":  "How long to wait after sending the Live Coding hotkey."
+                                                                    },
+                                            "editorExe":  {
+                                                              "type":  "string",
+                                                              "description":  "Absolute path to UnrealEditor.exe."
+                                                          }
+                                        }
+                     }
+}

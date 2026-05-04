@@ -1,0 +1,25 @@
+// {{COPYRIGHT}}
+
+#pragma once
+
+#include "CoreMinimal.h"
+#include "GameFramework/GameModeBase.h"
+#include "{{CLASS_NAME}}.generated.h"
+
+/**
+ * {{CLASS_DESCRIPTION}}
+ */
+UCLASS()
+class CLAWTESTPROJECT_API A{{CLASS_NAME}} : public AGameModeBase
+{
+	GENERATED_BODY()
+
+public:
+	A{{CLASS_NAME}}();
+
+	virtual void StartPlay() override;
+
+	// -- Properties --
+
+	// -- Functions --
+};

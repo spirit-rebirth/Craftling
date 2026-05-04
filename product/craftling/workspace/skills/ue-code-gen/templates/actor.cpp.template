@@ -1,0 +1,14 @@
+#include "{{CLASS_NAME}}.h"
+
+A{{CLASS_NAME}}::A{{CLASS_NAME}}()
+{
+	PrimaryActorTick.bCanEverTick = false;
+
+	SceneRoot = CreateDefaultSubobject<USceneComponent>(TEXT("SceneRoot"));
+	RootComponent = SceneRoot;
+}
+
+void A{{CLASS_NAME}}::BeginPlay()
+{
+	Super::BeginPlay();
+}

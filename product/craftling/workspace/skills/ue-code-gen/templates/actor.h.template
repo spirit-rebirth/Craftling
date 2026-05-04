@@ -1,0 +1,32 @@
+// {{COPYRIGHT}}
+
+#pragma once
+
+#include "CoreMinimal.h"
+#include "GameFramework/Actor.h"
+#include "{{CLASS_NAME}}.generated.h"
+
+/**
+ * {{CLASS_DESCRIPTION}}
+ */
+UCLASS()
+class CLAWTESTPROJECT_API A{{CLASS_NAME}} : public AActor
+{
+	GENERATED_BODY()
+
+public:
+	A{{CLASS_NAME}}();
+
+protected:
+	virtual void BeginPlay() override;
+
+public:
+	// -- Components --
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
+	USceneComponent* SceneRoot;
+
+	// -- Properties --
+
+	// -- Functions --
+};

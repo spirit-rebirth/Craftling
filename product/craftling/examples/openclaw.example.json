@@ -1,0 +1,56 @@
+{
+  "agents": {
+    "defaults": {
+      "workspace": "<absolute path to Craftling repo>/product/craftling/workspace"
+    },
+    "list": [
+      {
+        "id": "main",
+        "tools": {
+          "alsoAllow": [
+            "lobster",
+            "unreal-agentbridge",
+            "ue_health",
+            "ue_list_actors",
+            "ue_spawn_actor",
+            "ue_delete_actor",
+            "ue_modify_actor",
+            "ue_pie_start",
+            "ue_pie_stop",
+            "ue_pie_status",
+            "ue_world_query",
+            "ue_logs_tail",
+            "ue_test_status",
+            "ue_test_results",
+            "ue_build",
+            "ue_editor_open"
+          ]
+        }
+      }
+    ]
+  },
+  "plugins": {
+    "load": {
+      "paths": [
+        "<absolute path to Craftling repo>/product/craftling/plugins/openclaw-unreal-agentbridge"
+      ]
+    },
+    "entries": {
+      "lobster": {
+        "enabled": true
+      },
+      "unreal-agentbridge": {
+        "enabled": true,
+        "config": {
+          "baseUrl": "http://127.0.0.1:8080",
+          "buildBat": "<absolute path to Unreal Engine Build.bat>",
+          "projectFile": "<absolute path to your .uproject>",
+          "defaultBuildTarget": "<YourProjectEditor>",
+          "defaultBuildPlatform": "Win64",
+          "defaultBuildConfiguration": "Development",
+          "editorExe": "<absolute path to UnrealEditor.exe>"
+        }
+      }
+    }
+  }
+}

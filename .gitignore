@@ -156,3 +156,14 @@ extensions/qa-lab/web/dist/
 .craftling/workspace/
 .craftling/logs/
 .craftling/tmp/
+.craftling-evidence/
+
+# Craftling product workspace runtime state (generated per machine; do not commit)
+product/craftling/workspace/.craftling-progress/
+product/craftling/workspace/.craftling-evidence/
+product/craftling/workspace/.openclaw/
+product/craftling/workspace/.lobster/
+product/craftling/workspace/state/
+product/craftling/workspace/memory/.dreams/
+!product/craftling/workspace/IDENTITY.md
+!product/craftling/workspace/USER.md
