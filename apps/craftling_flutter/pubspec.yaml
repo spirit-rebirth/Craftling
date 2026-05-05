@@ -11,11 +11,11 @@ dependencies:
     sdk: flutter
   web_socket_channel: ^2.3.0
   flutter_markdown: ^0.7.3
+  http: ^1.1.0
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  http: ^1.1.0
   flutter_lints: ^6.0.0
 
 flutter:

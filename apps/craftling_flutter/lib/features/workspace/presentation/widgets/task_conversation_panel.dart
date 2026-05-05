@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 
 import '../../../../core/network/craftling_gateway_url.dart';
 import '../../../../core/utils/assistant_parser.dart';
+import '../../../settings/data/craftling_settings_api.dart';
 import '../../domain/workspace_models.dart';
 import '../theme/workspace_colors.dart';
 import 'workspace_shared.dart';
@@ -275,7 +278,7 @@ class _TaskConversationPanelState extends State<TaskConversationPanel> {
   }
 }
 
-class _SettingsCenterState extends StatelessWidget {
+class _SettingsCenterState extends StatefulWidget {
   const _SettingsCenterState({
     required this.controller,
     required this.isConnected,
@@ -293,13 +296,215 @@ class _SettingsCenterState extends StatelessWidget {
   final VoidCallback onHome;
 
   @override
+  State<_SettingsCenterState> createState() => _SettingsCenterStateState();
+}
+
+class _SettingsCenterStateState extends State<_SettingsCenterState> {
+  final TextEditingController _engineRootController = TextEditingController();
+  final TextEditingController _projectFileController = TextEditingController();
+  final TextEditingController _agentBridgeUrlController = TextEditingController(
+    text: 'http://127.0.0.1:8080',
+  );
+
+  bool _loadingSettings = false;
+  bool _connectingCodex = false;
+  bool _savingUnreal = false;
+  Timer? _codexPollTimer;
+  String? _llmStatusText;
+  String? _unrealStatusText;
+  String? _settingsApiErrorText;
+  String? _codexAuthUrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSettings();
+  }
+
+  @override
+  void didUpdateWidget(covariant _SettingsCenterState oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.controller.text != widget.controller.text) {
+      _loadSettings();
+    }
+  }
+
+  @override
+  void dispose() {
+    _codexPollTimer?.cancel();
+    _engineRootController.dispose();
+    _projectFileController.dispose();
+    _agentBridgeUrlController.dispose();
+    super.dispose();
+  }
+
+  CraftlingSettingsApi get _api =>
+      CraftlingSettingsApi(gatewayBaseUrl: widget.controller.text);
+
+  Future<void> _loadSettings() async {
+    if (toCraftlingGatewayApiUri(widget.controller.text, '/settings') == null) {
+      return;
+    }
+    setState(() {
+      _loadingSettings = true;
+      _settingsApiErrorText = null;
+    });
+    try {
+      final CraftlingSettingsSnapshot snapshot = await _api.loadSettings();
+      if (!mounted) {
+        return;
+      }
+      _engineRootController.text = snapshot.unreal.engineRoot;
+      _projectFileController.text = snapshot.unreal.projectFile;
+      _agentBridgeUrlController.text = snapshot.unreal.baseUrl;
+      setState(() {
+        _llmStatusText = snapshot.llm.connected
+            ? 'Connected ${snapshot.llm.profileLabel}'.trim()
+            : 'Not connected';
+        _unrealStatusText = snapshot.unreal.configured
+            ? 'Configured ${snapshot.unreal.defaultBuildTarget}'.trim()
+            : 'Not configured';
+      });
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _settingsApiErrorText = error.toString();
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _loadingSettings = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _connectCodex() async {
+    setState(() {
+      _connectingCodex = true;
+      _settingsApiErrorText = null;
+      _codexAuthUrl = null;
+      _llmStatusText = 'Starting OAuth...';
+    });
+    try {
+      final CraftlingCodexOAuthStatus status = await _api.startCodexOAuth();
+      if (!mounted) {
+        return;
+      }
+      _applyCodexOAuthStatus(status);
+      if (!status.succeeded && !status.failed) {
+        _startCodexPolling();
+      }
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _settingsApiErrorText = error.toString();
+        _llmStatusText = 'Connection failed';
+        _connectingCodex = false;
+      });
+    }
+  }
+
+  void _startCodexPolling() {
+    _codexPollTimer?.cancel();
+    _codexPollTimer = Timer.periodic(const Duration(seconds: 2), (_) async {
+      try {
+        final CraftlingCodexOAuthStatus status = await _api
+            .loadCodexOAuthStatus();
+        if (!mounted) {
+          return;
+        }
+        _applyCodexOAuthStatus(status);
+        if (status.succeeded || status.failed || !status.running) {
+          _codexPollTimer?.cancel();
+        }
+      } catch (error) {
+        if (!mounted) {
+          return;
+        }
+        _codexPollTimer?.cancel();
+        setState(() {
+          _settingsApiErrorText = error.toString();
+          _llmStatusText = 'Connection failed';
+          _connectingCodex = false;
+        });
+      }
+    });
+  }
+
+  void _applyCodexOAuthStatus(CraftlingCodexOAuthStatus status) {
+    setState(() {
+      _codexAuthUrl = status.authUrl.isEmpty ? _codexAuthUrl : status.authUrl;
+      if (status.succeeded) {
+        _llmStatusText = 'Connected ${status.profileLabel}'.trim();
+        _connectingCodex = false;
+        return;
+      }
+      if (status.failed) {
+        _llmStatusText = 'Connection failed';
+        _settingsApiErrorText = status.error.isEmpty
+            ? 'Codex OAuth failed.'
+            : status.error;
+        _connectingCodex = false;
+        return;
+      }
+      if (status.authUrl.isNotEmpty && status.browserOpened == false) {
+        _llmStatusText = 'Open the sign-in URL below';
+        return;
+      }
+      _llmStatusText = 'Waiting for browser sign-in...';
+    });
+  }
+
+  Future<void> _saveUnrealSettings() async {
+    setState(() {
+      _savingUnreal = true;
+      _settingsApiErrorText = null;
+      _unrealStatusText = 'Saving...';
+    });
+    try {
+      final CraftlingUnrealSettings unreal = await _api.saveUnreal(
+        engineRoot: _engineRootController.text,
+        projectFile: _projectFileController.text,
+        baseUrl: _agentBridgeUrlController.text,
+      );
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _unrealStatusText = unreal.configured
+            ? 'Configured ${unreal.defaultBuildTarget}'.trim()
+            : 'Configured';
+      });
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _settingsApiErrorText = error.toString();
+        _unrealStatusText = 'Save failed';
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _savingUnreal = false;
+        });
+      }
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
         Row(
           children: <Widget>[
-            _HeaderHomeButton(onPressed: onHome),
+            _HeaderHomeButton(onPressed: widget.onHome),
             const SizedBox(width: 12),
             const Text(
               'Settings',
@@ -316,149 +521,383 @@ class _SettingsCenterState extends StatelessWidget {
           'Workspace-level configuration for the Craftling Gateway.',
           style: TextStyle(color: textSecondary, fontSize: 15, height: 1.5),
         ),
-        const SizedBox(height: 28),
-        ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 720),
-          child: Container(
-            padding: const EdgeInsets.all(22),
-            decoration: BoxDecoration(
-              color: bubbleSurfaceAlt,
-              borderRadius: BorderRadius.circular(24),
-              border: Border.all(color: panelBorder),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                const Text(
-                  'Craftling Gateway URL',
-                  style: TextStyle(
-                    color: textPrimary,
-                    fontSize: 13.5,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                const SizedBox(height: 10),
-                TextField(
-                  controller: controller,
-                  style: const TextStyle(color: textPrimary, fontSize: 14),
-                  decoration: InputDecoration(
-                    hintText: defaultCraftlingGatewayUrl,
-                    hintStyle: const TextStyle(color: mutedText, fontSize: 14),
-                    filled: true,
-                    fillColor: panelBackground,
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 16,
+        const SizedBox(height: 22),
+        Expanded(
+          child: SingleChildScrollView(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 820),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  _SettingsCard(
+                    title: 'Gateway',
+                    trailing: _StatusPill(
+                      label: widget.isConnected ? 'Online' : 'Offline',
+                      color: widget.isConnected ? successGreen : dangerRed,
+                      icon: widget.isConnected
+                          ? Icons.check_circle_rounded
+                          : Icons.error_outline_rounded,
                     ),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(18),
-                      borderSide: BorderSide.none,
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(18),
-                      borderSide: const BorderSide(color: panelBorder),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(18),
-                      borderSide: const BorderSide(color: primaryBlue),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 10,
-                  ),
-                  decoration: BoxDecoration(
-                    color: (isConnected ? successGreen : dangerRed).withValues(
-                      alpha: 0.12,
-                    ),
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(
-                      color: (isConnected ? successGreen : dangerRed)
-                          .withValues(alpha: 0.32),
-                    ),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: <Widget>[
-                      Icon(
-                        isConnected
-                            ? Icons.check_circle_rounded
-                            : Icons.error_outline_rounded,
-                        size: 16,
-                        color: isConnected ? successGreen : dangerRed,
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        isConnected ? 'Online' : 'Offline',
-                        style: TextStyle(
-                          color: isConnected ? successGreen : dangerRed,
-                          fontSize: 12.5,
-                          fontWeight: FontWeight.w700,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        _SettingsTextField(
+                          label: 'Gateway URL',
+                          controller: widget.controller,
+                          hintText: defaultCraftlingGatewayUrl,
                         ),
-                      ),
-                    ],
+                        if (widget.errorText != null) ...<Widget>[
+                          const SizedBox(height: 12),
+                          _SettingsMessage(
+                            text: widget.errorText!,
+                            color: dangerRed,
+                          ),
+                        ],
+                        if (widget.infoText != null) ...<Widget>[
+                          const SizedBox(height: 12),
+                          _SettingsMessage(
+                            text: widget.infoText!,
+                            color: widget.isConnected
+                                ? successGreen
+                                : textSecondary,
+                          ),
+                        ],
+                        const SizedBox(height: 16),
+                        Row(
+                          children: <Widget>[
+                            FilledButton.icon(
+                              onPressed: widget.onApply,
+                              style: _settingsButtonStyle(primaryBlue),
+                              icon: Icon(
+                                widget.isConnected
+                                    ? Icons.link_off_rounded
+                                    : Icons.link_rounded,
+                                size: 17,
+                              ),
+                              label: Text(
+                                widget.isConnected ? 'Disconnect' : 'Connect',
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            OutlinedButton.icon(
+                              onPressed: _loadingSettings
+                                  ? null
+                                  : () => _loadSettings(),
+                              style: _settingsOutlinedButtonStyle(),
+                              icon: const Icon(Icons.refresh_rounded, size: 17),
+                              label: const Text('Refresh'),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-                const SizedBox(height: 10),
-                const Text(
-                  'Use the Gateway base URL. Craftling will connect to '
-                  '/__craftling__/ws automatically.',
-                  style: TextStyle(
-                    color: mutedText,
-                    fontSize: 12.5,
-                    height: 1.45,
+                  const SizedBox(height: 16),
+                  _SettingsCard(
+                    title: 'LLM',
+                    trailing: _StatusPill(
+                      label: _llmStatusText ?? 'Unknown',
+                      color: (_llmStatusText ?? '').startsWith('Connected')
+                          ? successGreen
+                          : warningAmber,
+                      icon: (_llmStatusText ?? '').startsWith('Connected')
+                          ? Icons.check_circle_rounded
+                          : Icons.key_rounded,
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        Row(
+                          children: <Widget>[
+                            FilledButton.icon(
+                              onPressed: _connectingCodex
+                                  ? null
+                                  : _connectCodex,
+                              style: _settingsButtonStyle(primaryBlue),
+                              icon: _connectingCodex
+                                  ? const SizedBox(
+                                      width: 17,
+                                      height: 17,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        color: textPrimary,
+                                      ),
+                                    )
+                                  : const Icon(Icons.login_rounded, size: 17),
+                              label: Text(
+                                _connectingCodex
+                                    ? 'Connecting'
+                                    : 'Connect Codex',
+                              ),
+                            ),
+                          ],
+                        ),
+                        if (_codexAuthUrl != null) ...<Widget>[
+                          const SizedBox(height: 12),
+                          SelectableText(
+                            _codexAuthUrl!,
+                            style: const TextStyle(
+                              color: textSecondary,
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w600,
+                              height: 1.45,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
                   ),
-                ),
-                if (errorText != null) ...<Widget>[
-                  const SizedBox(height: 12),
-                  Text(
-                    errorText!,
-                    style: const TextStyle(
+                  const SizedBox(height: 16),
+                  _SettingsCard(
+                    title: 'Unreal',
+                    trailing: _StatusPill(
+                      label: _unrealStatusText ?? 'Unknown',
+                      color: (_unrealStatusText ?? '').startsWith('Configured')
+                          ? successGreen
+                          : warningAmber,
+                      icon: (_unrealStatusText ?? '').startsWith('Configured')
+                          ? Icons.check_circle_rounded
+                          : Icons.tune_rounded,
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        _SettingsTextField(
+                          label: 'Unreal Engine Directory',
+                          controller: _engineRootController,
+                          hintText: r'D:\UnrealEngine\UE_5.6',
+                        ),
+                        const SizedBox(height: 12),
+                        _SettingsTextField(
+                          label: 'Unreal Project File',
+                          controller: _projectFileController,
+                          hintText: r'D:\Project\Game\Game.uproject',
+                        ),
+                        const SizedBox(height: 12),
+                        _SettingsTextField(
+                          label: 'AgentBridge URL',
+                          controller: _agentBridgeUrlController,
+                          hintText: 'http://127.0.0.1:8080',
+                        ),
+                        const SizedBox(height: 16),
+                        FilledButton.icon(
+                          onPressed: _savingUnreal ? null : _saveUnrealSettings,
+                          style: _settingsButtonStyle(primaryBlue),
+                          icon: _savingUnreal
+                              ? const SizedBox(
+                                  width: 17,
+                                  height: 17,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: textPrimary,
+                                  ),
+                                )
+                              : const Icon(Icons.save_rounded, size: 17),
+                          label: Text(_savingUnreal ? 'Saving' : 'Save Unreal'),
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (_settingsApiErrorText != null) ...<Widget>[
+                    const SizedBox(height: 14),
+                    _SettingsMessage(
+                      text: _settingsApiErrorText!,
                       color: dangerRed,
-                      fontSize: 12.5,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ],
-                if (infoText != null) ...<Widget>[
-                  const SizedBox(height: 12),
-                  Text(
-                    infoText!,
-                    style: TextStyle(
-                      color: isConnected ? successGreen : textSecondary,
-                      fontSize: 12.5,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ],
-                const SizedBox(height: 20),
-                Row(
-                  children: <Widget>[
-                    FilledButton(
-                      onPressed: onApply,
-                      style: FilledButton.styleFrom(
-                        backgroundColor: primaryBlue,
-                        foregroundColor: textPrimary,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 18,
-                          vertical: 14,
-                        ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                      ),
-                      child: Text(isConnected ? 'Disconnect' : 'Apply'),
                     ),
                   ],
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
       ],
+    );
+  }
+}
+
+ButtonStyle _settingsButtonStyle(Color color) {
+  return FilledButton.styleFrom(
+    backgroundColor: color,
+    foregroundColor: textPrimary,
+    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+  );
+}
+
+ButtonStyle _settingsOutlinedButtonStyle() {
+  return OutlinedButton.styleFrom(
+    foregroundColor: textPrimary,
+    side: const BorderSide(color: panelBorder),
+    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+  );
+}
+
+class _SettingsCard extends StatelessWidget {
+  const _SettingsCard({
+    required this.title,
+    required this.child,
+    this.trailing,
+  });
+
+  final String title;
+  final Widget child;
+  final Widget? trailing;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(22),
+      decoration: BoxDecoration(
+        color: bubbleSurfaceAlt,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: panelBorder),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Row(
+            children: <Widget>[
+              Expanded(
+                child: Text(
+                  title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: textPrimary,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+              ?trailing,
+            ],
+          ),
+          const SizedBox(height: 16),
+          child,
+        ],
+      ),
+    );
+  }
+}
+
+class _StatusPill extends StatelessWidget {
+  const _StatusPill({
+    required this.label,
+    required this.color,
+    required this.icon,
+  });
+
+  final String label;
+  final Color color;
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      constraints: const BoxConstraints(maxWidth: 260),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: color.withValues(alpha: 0.32)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          Icon(icon, size: 16, color: color),
+          const SizedBox(width: 8),
+          Flexible(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: color,
+                fontSize: 12.5,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SettingsTextField extends StatelessWidget {
+  const _SettingsTextField({
+    required this.label,
+    required this.controller,
+    required this.hintText,
+  });
+
+  final String label;
+  final TextEditingController controller;
+  final String hintText;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        Text(
+          label,
+          style: const TextStyle(
+            color: textPrimary,
+            fontSize: 13.5,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        const SizedBox(height: 8),
+        TextField(
+          controller: controller,
+          style: const TextStyle(color: textPrimary, fontSize: 14),
+          decoration: InputDecoration(
+            hintText: hintText,
+            hintStyle: const TextStyle(color: mutedText, fontSize: 14),
+            filled: true,
+            fillColor: panelBackground,
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 15,
+            ),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(18),
+              borderSide: BorderSide.none,
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(18),
+              borderSide: const BorderSide(color: panelBorder),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(18),
+              borderSide: const BorderSide(color: primaryBlue),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _SettingsMessage extends StatelessWidget {
+  const _SettingsMessage({required this.text, required this.color});
+
+  final String text;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      text,
+      style: TextStyle(
+        color: color,
+        fontSize: 12.5,
+        fontWeight: FontWeight.w600,
+        height: 1.45,
+      ),
     );
   }
 }

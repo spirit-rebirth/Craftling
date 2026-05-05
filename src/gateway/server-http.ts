@@ -13,6 +13,7 @@ import type { CanvasHostHandler } from "../canvas-host/server.js";
 import { resolveBundledChannelGatewayAuthBypassPaths } from "../channels/plugins/gateway-auth-bypass.js";
 import { loadConfig } from "../config/config.js";
 import type { OpenClawConfig } from "../config/types.openclaw.js";
+import { handleCraftlingSettingsHttpRequest } from "../craftling/settings-http.js";
 import { CRAFTLING_WS_PATH } from "../craftling/routes.js";
 import type { createSubsystemLogger } from "../logging/subsystem.js";
 import { resolveHookExternalContentSource as resolveHookExternalContentSourceFromSession } from "../security/external-content.js";
@@ -1041,6 +1042,10 @@ export function createGatewayHttpServer(opts: {
           run: () => canvasHost.handleHttpRequest(req, res),
         });
       }
+      requestStages.push({
+        name: "craftling-settings",
+        run: () => handleCraftlingSettingsHttpRequest(req, res, configSnapshot),
+      });
       // Plugin routes run before the Control UI SPA catch-all so explicitly
       // registered plugin endpoints stay reachable. Core built-in gateway
       // routes above still keep precedence on overlapping paths.
