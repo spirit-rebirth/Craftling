@@ -36,9 +36,25 @@ The OpenClaw workspace, Unreal project path, Unreal Engine path, and build targe
 
 Preferred compile policy: CLI build with the editor closed, then reopen the editor for testing
 
-## Tool Surface To Use
+## Mandatory Execution Rule
 
-Primary tools:
+For implementation-and-verification requests, you are responsible for:
+- Stage 1: analyze
+- Stage 2: write or edit source files
+- then handing off all remaining stages to the registered `lobster` tool
+
+Do not call `ue_build`, `ue_editor_open`, `ue_health`, `ue_spawn_actor`, `ue_pie_start`, `ue_pie_stop`, or other direct UE tools yourself after Stage 2.
+
+Those direct UE tools are the tool surface used inside the deterministic Lobster workflow. If you call them directly for this full-loop skill, you have bypassed Lobster and the workflow is invalid.
+
+If the registered `lobster` tool is not available, use the wrapper-script fallback described in the Lobster section. Do not silently continue with direct UE tools.
+
+## Tool Surface Reference
+
+Primary deterministic workflow tool:
+- `lobster`
+
+Direct UE tools used by the Lobster workflow and by simple `ue-direct` one-step requests only:
 - `ue_build`
 - `ue_editor_open`
 - `ue_health`
@@ -85,13 +101,14 @@ Implementation requirements:
 ### Stage 3: Build
 
 Default path:
-- call `ue_build`
+- call the registered `lobster` tool with the expanded `ue-full-loop.registered.pipeline.md` text
+- Lobster will perform build, editor launch, bridge wait, placement, PIE, verification, cleanup, and approval gates
 
 Rules:
-- do not claim success until `ue_build` succeeds
+- do not call `ue_build` directly in this full-loop skill
+- do not claim success until Lobster reaches runtime verification and PIE cleanup
+- if Lobster reports a build failure, use the actual compiler output to guide the next source fix, then re-run Lobster from scratch
 - do not use `ue_live_compile`
-- if the editor is still open and the task requires a clean CLI build, stop and report that the editor must be closed before continuing
-- if `ue_build` fails, use the actual compiler output to guide the next fix
 
 ### Stage 4: Open Editor
 
@@ -189,8 +206,10 @@ If the retry budget is exhausted:
 
 ## Lobster Workflow (Deterministic Execution)
 
-After code is implemented (Stage 1-2), use the Lobster workflow to run all remaining stages deterministically.
+After code is implemented (Stage 1-2), you MUST use the Lobster workflow to run all remaining stages deterministically.
 This prevents early stopping and enforces the full stage sequence.
+
+Directly calling `ue_build`, `ue_editor_open`, `ue_health`, or other UE tools after Stage 2 is a workflow error. It is not an acceptable fallback for this skill.
 
 ### CRITICAL: You MUST pass the class name
 
@@ -204,6 +223,10 @@ If the `lobster` tool is available in your tool list, load the pipeline text fro
 
 - `skills/ue-full-loop/ue-full-loop.registered.pipeline.md`
 
+Read that file before calling `lobster`. The `pipeline` argument MUST be the command pipeline text from the fenced `text` block in that file, after placeholder replacement.
+
+Do NOT invent a Lobster pipeline from memory. Do NOT pass YAML or JSON workflow syntax such as `name:`, `args:`, or `steps:` as the `pipeline` value. The registered Lobster tool expects command pipeline text; YAML-style input fails with `Unknown command: name`.
+
 Replace these placeholders in the template before calling the tool:
 
 - `__CLASS__`
@@ -212,7 +235,8 @@ Replace these placeholders in the template before calling the tool:
 - `__LOC_Y__`
 - `__LOC_Z__`
 - `__PROGRESS_FILE__`
-- `__UECLAW_ROOT__`
+
+The registered pipeline uses relative script paths like `./skills/ue-full-loop/ue-full-loop-state.mjs`. When calling `lobster`, pass `cwd: "product/craftling/workspace"`. Do NOT pass an absolute `cwd`; Lobster requires a relative cwd inside the gateway repo.
 
 If the current request includes a runtime progress file path, replace `__PROGRESS_FILE__` with that exact path. Otherwise replace it with an empty temp file path under `%TEMP%`.
 
@@ -222,6 +246,7 @@ Then call the tool with:
 {
   "action": "run",
   "pipeline": "<expanded pipeline text from ue-full-loop.registered.pipeline.md>",
+  "cwd": "product/craftling/workspace",
   "timeoutMs": 1200000
 }
 ```
@@ -242,23 +267,23 @@ Use the wrapper script only if the registered pipeline path is unavailable on th
 It takes simple positional arguments 鈥?no JSON escaping needed:
 
 ```bash
-node __UECLAW_ROOT__/skills/ue-full-loop/ue-run-fullloop.mjs <class> [actor_name] [loc_x] [loc_y] [loc_z]
+node <CRAFTLING_SKILL_WORKSPACE_ROOT>/skills/ue-full-loop/ue-run-fullloop.mjs <class> [actor_name] [loc_x] [loc_y] [loc_z]
 ```
 
 Example for a C++ actor `ATestLobster11`:
 ```bash
-node __UECLAW_ROOT__/skills/ue-full-loop/ue-run-fullloop.mjs TestLobster11
+node <CRAFTLING_SKILL_WORKSPACE_ROOT>/skills/ue-full-loop/ue-run-fullloop.mjs TestLobster11
 ```
 
 With custom location:
 ```bash
-node __UECLAW_ROOT__/skills/ue-full-loop/ue-run-fullloop.mjs TestLobster11 AgentTestActor 100 200 300
+node <CRAFTLING_SKILL_WORKSPACE_ROOT>/skills/ue-full-loop/ue-run-fullloop.mjs TestLobster11 AgentTestActor 100 200 300
 ```
 
 To resume after an approval gate:
 ```bash
-node __UECLAW_ROOT__/skills/ue-full-loop/ue-run-fullloop.mjs resume <resumeToken> approve
-node __UECLAW_ROOT__/skills/ue-full-loop/ue-run-fullloop.mjs resume <resumeToken> reject
+node <CRAFTLING_SKILL_WORKSPACE_ROOT>/skills/ue-full-loop/ue-run-fullloop.mjs resume <resumeToken> approve
+node <CRAFTLING_SKILL_WORKSPACE_ROOT>/skills/ue-full-loop/ue-run-fullloop.mjs resume <resumeToken> reject
 ```
 
 ### How to invoke (Alternative 鈥?lobster CLI)
@@ -267,7 +292,7 @@ node __UECLAW_ROOT__/skills/ue-full-loop/ue-run-fullloop.mjs resume <resumeToken
 Use the registered pipeline (recommended) or the wrapper script (fallback) instead.**
 
 ```bash
-lobster run --mode tool --file "__UECLAW_ROOT__/skills/ue-full-loop/ue-full-loop.lobster" --args-json '{"class":"TestLobster11","actor_name":"AgentTestActor","loc_x":"0","loc_y":"0","loc_z":"100"}'
+lobster run --mode tool --file "<CRAFTLING_SKILL_WORKSPACE_ROOT>/skills/ue-full-loop/ue-full-loop.lobster" --args-json '{"class":"TestLobster11","actor_name":"AgentTestActor","loc_x":"0","loc_y":"0","loc_z":"100"}'
 ```
 
 ### Class name rules
@@ -316,17 +341,18 @@ APPROVAL_REQUIRED_JSON: {"gate":"<gate name>","prompt":"<approval prompt>","resu
 Rules for this marker:
 - Include the exact `resumeToken` returned by Lobster.
 - Use the Lobster prompt if it is available; otherwise summarize the approval question.
-- If the Lobster output contains `progress` entries, render each new entry before the marker using its `stage`, `skill`, `tool`, and `text` fields. Do not collapse the entries into a single sentence.
+- Do not render the full Lobster `progress` list before the marker. Craftling reads the runtime progress file and streams those entries as UI evidence/progress automatically.
 - Do not include secrets or unrelated tool output.
 - Do not call the registered `lobster` tool with `action: "resume"` until the human has approved through the frontend or explicitly replied with approval.
-- After the human approves, call `lobster resume` exactly once with that token and `approve: true`.
+- After the human approves, call `lobster resume` exactly once with that token, `approve: true`, and `cwd: "product/craftling/workspace"`.
 
 To resume (registered tool, preferred):
 ```json
 {
   "action": "resume",
   "token": "<resumeToken from the paused response>",
-  "approve": true
+  "approve": true,
+  "cwd": "product/craftling/workspace"
 }
 ```
 
@@ -363,8 +389,9 @@ These are not acceptable stopping points by themselves:
 
 ## Behavioral Rules
 
-- Use tools as the default path.
-- Prefer `ue_build` plus `ue_editor_open` over any Live Coding path.
+- Use the registered `lobster` tool as the default path after source edits.
+- Do not call direct UE tools after Stage 2 unless the user requested a simple one-step `ue-direct` action instead of this full loop.
+- Prefer Lobster's CLI build plus editor-open sequence over any Live Coding path.
 - Do not stop after a successful build; build is only the midpoint.
 - Do not stop after opening the editor; bridge and class verification still need to happen.
 - Do not stop after a successful PIE start; verification still needs to happen.

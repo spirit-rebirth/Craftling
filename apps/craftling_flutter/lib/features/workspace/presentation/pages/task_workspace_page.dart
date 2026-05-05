@@ -637,8 +637,9 @@ class _TaskWorkspaceScaffoldState extends State<TaskWorkspaceScaffold> {
       return;
     }
 
+    final int createdAt = DateTime.now().microsecondsSinceEpoch;
     final TaskWorkspaceData created = _buildLiveTask(
-      id: 'task-created-${_taskCounter++}',
+      id: 'task-$createdAt-${_taskCounter++}',
       request: trimmed,
     );
 

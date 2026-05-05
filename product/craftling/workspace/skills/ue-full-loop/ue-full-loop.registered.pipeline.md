@@ -9,21 +9,20 @@ Replace the placeholders before calling the `lobster` tool:
 - `__LOC_Y__`
 - `__LOC_Z__`
 - `__PROGRESS_FILE__`
-- `__UECLAW_ROOT__`
 
 ```text
-exec node __UECLAW_ROOT__/skills/ue-full-loop/ue-full-loop-state.mjs init "__CLASS__" "__ACTOR_NAME__" "__LOC_X__" "__LOC_Y__" "__LOC_Z__" "__PROGRESS_FILE__" --json |
-exec node __UECLAW_ROOT__/skills/ue-full-loop/ue-full-loop-state.mjs build "__PROGRESS_FILE__" --stdin=json --json |
-exec node __UECLAW_ROOT__/skills/ue-full-loop/ue-full-loop-state.mjs open-editor "__PROGRESS_FILE__" --stdin=json --json |
-exec node __UECLAW_ROOT__/skills/ue-full-loop/ue-full-loop-state.mjs wait-bridge "__PROGRESS_FILE__" --stdin=json --json |
-exec node __UECLAW_ROOT__/skills/ue-full-loop/ue-full-loop-state.mjs validate-class "__PROGRESS_FILE__" --stdin=json --json |
-exec node __UECLAW_ROOT__/skills/ue-full-loop/ue-full-loop-state.mjs place-actor "__PROGRESS_FILE__" --stdin=json --json |
+exec node ./skills/ue-full-loop/ue-full-loop-state.mjs init "__CLASS__" "__ACTOR_NAME__" "__LOC_X__" "__LOC_Y__" "__LOC_Z__" "__PROGRESS_FILE__" --json |
+exec node ./skills/ue-full-loop/ue-full-loop-state.mjs build "__PROGRESS_FILE__" --stdin=json --json |
+exec node ./skills/ue-full-loop/ue-full-loop-state.mjs open-editor "__PROGRESS_FILE__" --stdin=json --json |
+exec node ./skills/ue-full-loop/ue-full-loop-state.mjs wait-bridge "__PROGRESS_FILE__" --stdin=json --json |
+exec node ./skills/ue-full-loop/ue-full-loop-state.mjs validate-class "__PROGRESS_FILE__" --stdin=json --json |
+exec node ./skills/ue-full-loop/ue-full-loop-state.mjs place-actor "__PROGRESS_FILE__" --stdin=json --json |
 approve --emit --preview-from-stdin --limit 1 --prompt "Build OK, editor open, actor placed. Proceed to PIE verification?" |
-exec node __UECLAW_ROOT__/skills/ue-full-loop/ue-full-loop-state.mjs start-pie "__PROGRESS_FILE__" --stdin=json --json |
-exec node __UECLAW_ROOT__/skills/ue-full-loop/ue-full-loop-state.mjs wait-pie "__PROGRESS_FILE__" --stdin=json --json |
-exec node __UECLAW_ROOT__/skills/ue-full-loop/ue-full-loop-state.mjs capture-screenshot "__PROGRESS_FILE__" --stdin=json --json |
-exec node __UECLAW_ROOT__/skills/ue-full-loop/ue-full-loop-state.mjs collect-evidence "__PROGRESS_FILE__" --stdin=json --json |
-exec node __UECLAW_ROOT__/skills/ue-full-loop/ue-full-loop-state.mjs stop-pie "__PROGRESS_FILE__" --stdin=json --json |
+exec node ./skills/ue-full-loop/ue-full-loop-state.mjs start-pie "__PROGRESS_FILE__" --stdin=json --json |
+exec node ./skills/ue-full-loop/ue-full-loop-state.mjs wait-pie "__PROGRESS_FILE__" --stdin=json --json |
+exec node ./skills/ue-full-loop/ue-full-loop-state.mjs capture-screenshot "__PROGRESS_FILE__" --stdin=json --json |
+exec node ./skills/ue-full-loop/ue-full-loop-state.mjs collect-evidence "__PROGRESS_FILE__" --stdin=json --json |
+exec node ./skills/ue-full-loop/ue-full-loop-state.mjs stop-pie "__PROGRESS_FILE__" --stdin=json --json |
 approve --emit --preview-from-stdin --limit 1 --prompt "Review runtime evidence. Did the implementation pass?"
 ```
 
@@ -33,6 +32,7 @@ Example tool call:
 {
   "action": "run",
   "pipeline": "<the pipeline text above with placeholders replaced>",
+  "cwd": "product/craftling/workspace",
   "timeoutMs": 1200000
 }
 ```

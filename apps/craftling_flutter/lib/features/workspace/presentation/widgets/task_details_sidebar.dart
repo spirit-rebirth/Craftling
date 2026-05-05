@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 
 import '../../domain/workspace_models.dart';
 import '../theme/workspace_colors.dart';
+import 'evidence_local_image.dart';
 import 'workspace_shared.dart';
 
 class TaskDetailsSidebar extends StatefulWidget {
@@ -475,7 +476,8 @@ class EvidenceListItem extends StatelessWidget {
                     height: 1.35,
                   ),
                 ),
-                if (item.assetPath != null && item.assetPath!.trim().isNotEmpty) ...<Widget>[
+                if (item.assetPath != null &&
+                    item.assetPath!.trim().isNotEmpty) ...<Widget>[
                   const SizedBox(height: 8),
                   _EvidencePreview(path: item.assetPath!),
                 ],
@@ -517,6 +519,8 @@ class _EvidencePreviewState extends State<_EvidencePreview> {
   bool get _isNetworkImage =>
       widget.path.startsWith('http://') || widget.path.startsWith('https://');
 
+  bool get _isLocalImage => isLocalEvidenceImagePath(widget.path);
+
   @override
   void initState() {
     super.initState();
@@ -540,7 +544,10 @@ class _EvidencePreviewState extends State<_EvidencePreview> {
 
     final int separatorIndex = widget.path.indexOf(',');
     if (separatorIndex <= 0 ||
-        !widget.path.substring(0, separatorIndex).toLowerCase().contains(';base64')) {
+        !widget.path
+            .substring(0, separatorIndex)
+            .toLowerCase()
+            .contains(';base64')) {
       _invalidDataImage = true;
       return;
     }
@@ -554,7 +561,8 @@ class _EvidencePreviewState extends State<_EvidencePreview> {
 
   @override
   Widget build(BuildContext context) {
-    if (_invalidDataImage || (!_isDataImage && !_isNetworkImage)) {
+    if (_invalidDataImage ||
+        (!_isDataImage && !_isNetworkImage && !_isLocalImage)) {
       return _PathPreview(path: widget.path);
     }
 
@@ -590,7 +598,11 @@ class _EvidencePreviewState extends State<_EvidencePreview> {
     );
   }
 
-  Widget _buildImage({required BoxFit fit, double? height, double? width = double.infinity}) {
+  Widget _buildImage({
+    required BoxFit fit,
+    double? height,
+    double? width = double.infinity,
+  }) {
     final Uint8List? bytes = _dataImageBytes;
     if (_isDataImage && bytes != null) {
       return Image.memory(
@@ -611,6 +623,16 @@ class _EvidencePreviewState extends State<_EvidencePreview> {
         fit: fit,
         gaplessPlayback: true,
         errorBuilder: (_, _, _) => _PathPreview(path: widget.path),
+      );
+    }
+
+    if (_isLocalImage) {
+      return buildLocalEvidenceImage(
+        path: widget.path,
+        height: height,
+        width: width,
+        fit: fit,
+        fallback: () => _PathPreview(path: widget.path),
       );
     }
 

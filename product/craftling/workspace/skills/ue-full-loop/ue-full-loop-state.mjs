@@ -685,7 +685,7 @@ async function main() {
         'pie-screenshot',
         'Visual Evidence',
         'window_screenshot',
-        'PIE window screenshot captured.',
+        `PIE window screenshot captured: ${capturedPath}`,
         { screenshotPath: capturedPath }
       );
     } catch (error) {

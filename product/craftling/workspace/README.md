@@ -59,8 +59,9 @@ Lobster is enabled in local OpenClaw config, not by committing `~/.lobster` stat
 
 When expanding the registered pipeline, replace:
 
-- `__UECLAW_ROOT__` with the absolute path to this repo, using forward slashes for shell safety when possible.
 - `__PROGRESS_FILE__` with the runtime JSONL progress path supplied by the backend.
+
+The registered pipeline uses relative script paths. Call the Lobster tool with `cwd: "product/craftling/workspace"` from the Craftling repo. Do not pass an absolute `cwd`; Lobster intentionally rejects absolute cwd values.
 
 Do not commit `~/.lobster/state`. It contains approval tokens and resume data from previous runs.
 
@@ -95,8 +96,6 @@ If this repo is not a sibling of the backend repo, set one of these environment 
 
 ```env
 OPENCLAW_WORKDIR=<absolute path to this CraftlingClaw repo>
-# or
-UECLAW_ROOT=<absolute path to this CraftlingClaw repo>
 ```
 
 The backend defaults to its repo-local ACP bridge at `tools/openclaw_acp_bridge.mjs`. Override `OPENCLAW_ACP_BRIDGE` only if you intentionally keep the bridge somewhere else.

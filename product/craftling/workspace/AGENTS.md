@@ -245,18 +245,21 @@ For Unreal implementation-and-verification requests:
 - After writing/editing code (Analyze + Implement stages), hand off to lobster immediately.
 - **CRITICAL: You MUST pass the class name.** If you wrote `ATestLobster11`, pass `TestLobster11` (no `A` prefix).
 - **Preferred path: use the registered `lobster` tool** with the pipeline text from `ue-full-loop.registered.pipeline.md` and resume tokens (see SKILL.md).
+- Read `skills/ue-full-loop/ue-full-loop.registered.pipeline.md` before calling `lobster`. The `pipeline` argument MUST be the command pipeline text from that file's fenced `text` block after placeholder replacement.
+- Do NOT invent YAML/JSON pipeline syntax. Do NOT pass `name:`, `args:`, or `steps:` as the registered `lobster` pipeline; it expects command pipeline text and YAML-style input fails with `Unknown command: name`.
 - If the request includes a runtime progress file path, replace the registered pipeline's `__PROGRESS_FILE__` placeholder with that exact path before calling `lobster`.
+- The registered pipeline uses relative script paths. Call `lobster` with `cwd: "product/craftling/workspace"`; do not pass an absolute `cwd`.
 - **Fallback only if the registered pipeline path is unavailable on the current runtime:** use the wrapper script, which preserves the legacy file workflow in `ue-full-loop.lobster`:
   ```bash
-  node __UECLAW_ROOT__/skills/ue-full-loop/ue-run-fullloop.mjs TestLobster11
+  node <CRAFTLING_SKILL_WORKSPACE_ROOT>/skills/ue-full-loop/ue-run-fullloop.mjs TestLobster11
   ```
-  To resume after approval: `node __UECLAW_ROOT__/skills/ue-full-loop/ue-run-fullloop.mjs resume <token> approve`
+  To resume after approval: `node <CRAFTLING_SKILL_WORKSPACE_ROOT>/skills/ue-full-loop/ue-run-fullloop.mjs resume <token> approve`
 - Do NOT use `lobster run --args-json '...'` via exec/PowerShell 鈥?the JSON double quotes get mangled by PowerShell.
 - See `skills/ue-full-loop/SKILL.md` for full invocation details.
 - Lobster approval gates are human-only. If the registered `lobster` tool returns `needs_approval`, do not call `lobster resume`, do not approve, and do not reject by yourself. Stop and output a normal `Stage: Approval` / `Skill: ue-full-loop` / `Tool: lobster` status message for the user, then output exactly one control marker line:
   `APPROVAL_REQUIRED_JSON: {"gate":"<gate name>","prompt":"<approval prompt>","resumeToken":"<resumeToken>"}`
-  If the Lobster output contains `progress` entries, render each new entry before the marker using its `stage`, `skill`, `tool`, and `text` fields.
-  After the human approves through the frontend or explicitly replies with approval, resume exactly once with that token and `approve: true`.
+  Do not render the full Lobster `progress` list before the marker; Craftling streams runtime progress from the progress file automatically.
+  After the human approves through the frontend or explicitly replies with approval, resume exactly once with that token, `approve: true`, and `cwd: "product/craftling/workspace"`.
 
 A request should use the `ue-full-loop` workflow when it asks to:
 - write or modify Unreal C++ code and prove it works in engine
